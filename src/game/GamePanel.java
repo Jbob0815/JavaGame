@@ -7,8 +7,6 @@ import game.map.TileMap;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionMap;
-import java.awt.event.InputMap;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.Iterator;
