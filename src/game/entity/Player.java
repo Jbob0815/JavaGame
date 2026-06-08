@@ -16,6 +16,7 @@ public class Player {
     public Player(int startCol, int startRow, TileMap tileMap) {
         this.width = TileMap.TILE_SIZE;
         this.height = TileMap.TILE_SIZE;
+        // start guy on chosen tile pos
         setPosition(tileMap.tileToWorld(startCol, startRow));
     }
 

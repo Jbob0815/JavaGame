@@ -8,6 +8,7 @@ public class main {
         SwingUtilities.invokeLater(() -> {
             JFrame frame = new JFrame("2D Shooter");
             frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+            // lil window set up, super basic
 
             GamePanel panel = new GamePanel();
             frame.setContentPane(panel);
@@ -22,6 +23,7 @@ public class main {
                 }
             });
 
+            // boot up the game loop
             panel.start();
         });
     }

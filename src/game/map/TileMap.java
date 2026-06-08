@@ -22,6 +22,7 @@ public final class TileMap {
             throw new IllegalArgumentException("Tile layout must not be empty");
         }
         tiles = layout;
+        // cache points that are walk friendly
         walkableTiles = precomputeWalkableTiles(layout);
     }
 
@@ -112,6 +113,7 @@ public final class TileMap {
         if (walkableTiles.isEmpty()) {
             return null;
         }
+        // pick a tile sloppy random
         return walkableTiles.get(random.nextInt(walkableTiles.size()));
     }
 

@@ -18,6 +18,7 @@ public class Enemy {
         this.height = TileMap.TILE_SIZE;
         this.col = col;
         this.row = row;
+        // stick enemy on given tile coords
         setToTile(tileMap, col, row);
     }
 

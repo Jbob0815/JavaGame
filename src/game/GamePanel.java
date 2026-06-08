@@ -89,9 +89,11 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void updateGame(long nowNs, float deltaSeconds) {
+        // player move + colision check quick
         player.update(deltaSeconds, up, down, left, right, map);
 
         if (firing && nowNs - lastShotNs > SHOT_COOLDOWN_NS) {
+            // tiny cooldown so spam isnt crazy
             bullets.add(new Bullet(
                     player.getX() + player.getWidth() / 2.0f,
                     player.getY()
@@ -104,6 +106,7 @@ public class GamePanel extends JPanel implements Runnable {
             Bullet bullet = bulletIter.next();
             bullet.update(deltaSeconds);
             if (!bullet.isActive()) {
+                // clean dead bullet fast
                 bulletIter.remove();
             }
         }
@@ -122,6 +125,7 @@ public class GamePanel extends JPanel implements Runnable {
             while (enemyIter.hasNext()) {
                 Enemy enemy = enemyIter.next();
                 if (bulletRect.intersects(enemy.getBounds())) {
+                    // hit confirm -> remove both
                     enemyIter.remove();
                     bullet.deactivate();
                     break;
@@ -170,6 +174,7 @@ public class GamePanel extends JPanel implements Runnable {
                 continue;
             }
 
+            // spawn stays still for now
             enemies.add(new Enemy(map, tile.x, tile.y));
             return;
         }
@@ -198,6 +203,7 @@ public class GamePanel extends JPanel implements Runnable {
 
                 switch (tile) {
                     case TileMap.WALL:
+                        // wall tile darker feel
                         g2.setColor(Color.DARK_GRAY);
                         g2.fillRect(x, y, TileMap.TILE_SIZE, TileMap.TILE_SIZE);
                         break;
@@ -279,6 +285,7 @@ public class GamePanel extends JPanel implements Runnable {
         actionMap.put(releaseName, new AbstractAction() {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
+                // release stops action quick
                 onRelease.run();
             }
         });

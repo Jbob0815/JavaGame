@@ -15,11 +15,13 @@ public class Bullet {
     public Bullet(float startX, float startY) {
         this.x = startX - WIDTH / 2.0f;
         this.y = startY;
+        // drops out of player top
     }
 
     public void update(float deltaSeconds) {
         y -= SPEED * deltaSeconds;
         if (y + HEIGHT < 0) {
+            // bullet gone off screen
             active = false;
         }
     }
