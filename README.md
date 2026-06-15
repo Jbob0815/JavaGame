@@ -1,6 +1,6 @@
 # JavaGame
 
-Minimaler Swing-Start fuer ein 2D-Shooter-Geruest.
+2D-Shooter-Gerüst
 
 ## Schnellstart
 
