@@ -1,14 +1,17 @@
 package game.map;
 
+// small helper folks sitting right here
 import java.awt.Dimension;
 import java.awt.Point;
 import java.awt.Rectangle;
+// keeping list stuff handy
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
 public final class TileMap {
+    // tile size stays 64 so easy math yay
     public static final int TILE_SIZE = 64;
     public static final int WALKABLE = 0;
     public static final int WALL = 1;
@@ -123,6 +126,20 @@ public final class TileMap {
 
     public int[][] getTiles() {
         return tiles;
+    }
+
+    public Point findClosestWalkable(int startCol, int startRow) {
+        // quick + dirty scan to grab nearest safe tile
+        Point best = null;
+        int bestDist = Integer.MAX_VALUE;
+        for (Point tile : walkableTiles) {
+            int dist = Math.abs(tile.x - startCol) + Math.abs(tile.y - startRow);
+            if (dist < bestDist) {
+                best = tile;
+                bestDist = dist;
+            }
+        }
+        return best;
     }
 
     public static TileMap basicDemo() {

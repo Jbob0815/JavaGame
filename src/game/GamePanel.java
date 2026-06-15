@@ -33,6 +33,10 @@ public class GamePanel extends JPanel implements Runnable {
     private boolean left;
     private boolean right;
     private boolean firing;
+    private boolean aimUp;
+    private boolean aimDown;
+    private boolean aimLeft;
+    private boolean aimRight;
 
     private long lastShotNs;
 
@@ -92,11 +96,20 @@ public class GamePanel extends JPanel implements Runnable {
         // player move + colision check quick
         player.update(deltaSeconds, up, down, left, right, map);
 
+        float shootX = aimLeft ? -1 : aimRight ? 1 : 0;
+        float shootY = aimUp ? -1 : aimDown ? 1 : 0;
+        if (shootX == 0 && shootY == 0) {
+            shootX = player.getAimX();
+            shootY = player.getAimY();
+        }
+
         if (firing && nowNs - lastShotNs > SHOT_COOLDOWN_NS) {
             // tiny cooldown so spam isnt crazy
             bullets.add(new Bullet(
-                    player.getX() + player.getWidth() / 2.0f,
-                    player.getY()
+                    player.getCenterX(),
+                    player.getCenterY(),
+                    shootX,
+                    shootY
             ));
             lastShotNs = nowNs;
         }
@@ -254,13 +267,13 @@ public class GamePanel extends JPanel implements Runnable {
         ActionMap actionMap = getActionMap();
 
         registerKey(inputMap, actionMap, KeyEvent.VK_W, "moveUp", () -> up = true, () -> up = false);
-        registerKey(inputMap, actionMap, KeyEvent.VK_UP, "moveUpArrow", () -> up = true, () -> up = false);
+        registerKey(inputMap, actionMap, KeyEvent.VK_UP, "moveUpArrow", () -> aimUp = true, () -> aimUp = false);
         registerKey(inputMap, actionMap, KeyEvent.VK_S, "moveDown", () -> down = true, () -> down = false);
-        registerKey(inputMap, actionMap, KeyEvent.VK_DOWN, "moveDownArrow", () -> down = true, () -> down = false);
+        registerKey(inputMap, actionMap, KeyEvent.VK_DOWN, "moveDownArrow", () -> aimDown = true, () -> aimDown = false);
         registerKey(inputMap, actionMap, KeyEvent.VK_A, "moveLeft", () -> left = true, () -> left = false);
-        registerKey(inputMap, actionMap, KeyEvent.VK_LEFT, "moveLeftArrow", () -> left = true, () -> left = false);
+        registerKey(inputMap, actionMap, KeyEvent.VK_LEFT, "moveLeftArrow", () -> aimLeft = true, () -> aimLeft = false);
         registerKey(inputMap, actionMap, KeyEvent.VK_D, "moveRight", () -> right = true, () -> right = false);
-        registerKey(inputMap, actionMap, KeyEvent.VK_RIGHT, "moveRightArrow", () -> right = true, () -> right = false);
+        registerKey(inputMap, actionMap, KeyEvent.VK_RIGHT, "moveRightArrow", () -> aimRight = true, () -> aimRight = false);
         registerKey(inputMap, actionMap, KeyEvent.VK_SPACE, "fire", () -> firing = true, () -> firing = false);
     }
 
