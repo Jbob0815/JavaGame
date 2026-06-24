@@ -76,6 +76,11 @@ public final class TileMap {
         return getTile(col, row) == WALKABLE;
     }
 
+    // tiny helper so we know where shots die
+    public boolean isWall(int col, int row) {
+        return getTile(col, row) == WALL;
+    }
+
     public boolean isHole(int col, int row) {
         return getTile(col, row) == HOLE;
     }

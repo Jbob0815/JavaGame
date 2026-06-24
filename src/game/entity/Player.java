@@ -4,21 +4,44 @@ import game.map.TileMap;
 
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.image.BufferedImage;
+import java.util.EnumMap;
+import java.util.Map;
 
 public class Player {
-    private static final int SPEED = 280;
+    private static final int SPEED = 220;
 
     private final Rectangle bounds = new Rectangle();
     private float x;
     private float y;
     private final int width;
     private final int height;
+    // keep spawn info so respawn isnt messy lol
+    private final int spawnCol;
+    private final int spawnRow;
     private float lastMoveX = 0f;
     private float lastMoveY = -1f;
+    private BufferedImage currentSprite;
+
+    public enum Direction {
+        DOWN,
+        LEFT,
+        RIGHT,
+        UP
+    }
+
+    private final Map<Direction, BufferedImage[]> animationFrames = new EnumMap<>(Direction.class);
+    private final Map<Direction, Float> animationTimers = new EnumMap<>(Direction.class);
+    private final Map<Direction, Integer> animationIndices = new EnumMap<>(Direction.class);
+    private Direction currentDirection = Direction.DOWN;
 
     public Player(int startCol, int startRow, TileMap tileMap) {
-        this.width = TileMap.TILE_SIZE;
-        this.height = TileMap.TILE_SIZE;
+        //this.width = TileMap.TILE_SIZE;
+        this.width = 32;
+        this.height = 51;
+        //this.height = TileMap.TILE_SIZE;
+        this.spawnCol = startCol;
+        this.spawnRow = startRow;
         // start guy on chosen tile pos
         setToSpawnTile(startCol, startRow, tileMap);
     }
@@ -38,7 +61,15 @@ public class Player {
         setPosition(tileMap.tileToWorld(chosenCol, chosenRow));
     }
 
+    public void reset(TileMap tileMap) {
+        // drop hero back to spawn tile quick
+        setToSpawnTile(spawnCol, spawnRow, tileMap);
+        lastMoveX = 0f;
+        lastMoveY = -1f;
+    }
+
     public void update(float deltaSeconds, boolean up, boolean down, boolean left, boolean right, TileMap tileMap) {
+        // figuring out tiny move vector here
         float dx = 0;
         float dy = 0;
         if (up) {
@@ -59,15 +90,18 @@ public class Player {
             dy /= length;
             lastMoveX = dx;
             lastMoveY = dy;
+            currentDirection = determineDirection();
         }
 
         float newX = x + dx * SPEED * deltaSeconds;
         float newY = y + dy * SPEED * deltaSeconds;
 
         if (tileMap.isAreaWalkable(newX, y, width, height)) {
+            // ok slide on x
             x = newX;
         }
         if (tileMap.isAreaWalkable(x, newY, width, height)) {
+            // ok slide on y
             y = newY;
         }
     }
@@ -93,9 +127,10 @@ public class Player {
         return height;
     }
 
-    public void setPosition(java.awt.Point position) {
-        this.x = position.x;
-        this.y = position.y;
+    public void setPosition(Point position) {
+        // nudge to tile middle so sprite sits right
+        this.x = position.x + (TileMap.TILE_SIZE - width) / 2f;
+        this.y = position.y + (TileMap.TILE_SIZE - height) / 2f;
     }
 
     public float getAimX() {
@@ -113,5 +148,58 @@ public class Player {
 
     public float getCenterY() {
         return y + height / 2f;
+    }
+
+    public void updateAim(float aimX, float aimY) {
+        if (aimX == 0f && aimY == 0f) {
+            return;
+        }
+        lastMoveX = aimX;
+        lastMoveY = aimY;
+    }
+
+    public Direction determineDirection() {
+        if (Math.abs(lastMoveX) > Math.abs(lastMoveY)) {
+            return lastMoveX > 0 ? Direction.RIGHT : Direction.LEFT;
+        }
+        if (Math.abs(lastMoveY) > 0.01f) {
+            return lastMoveY > 0 ? Direction.DOWN : Direction.UP;
+        }
+        return currentDirection;
+    }
+
+    public void setAnimationFrames(Direction direction, BufferedImage[] frames) {
+        animationFrames.put(direction, frames);
+        animationTimers.put(direction, 0f);
+        animationIndices.put(direction, 0);
+    }
+
+    public void advanceAnimation(Direction direction, float deltaSeconds, float frameDuration) {
+        BufferedImage[] frames = animationFrames.get(direction);
+        if (frames == null || frames.length == 0) {
+            currentSprite = null;
+            return;
+        }
+        float timer = animationTimers.getOrDefault(direction, 0f) + deltaSeconds;
+        int index = animationIndices.getOrDefault(direction, 0);
+        if (timer >= frameDuration) {
+            timer -= frameDuration;
+            index = (index + 1) % frames.length;
+        }
+        animationTimers.put(direction, timer);
+        animationIndices.put(direction, index);
+        currentSprite = frames[index];
+    }
+
+    public Direction getCurrentDirection() {
+        return currentDirection;
+    }
+
+    public void setCurrentSprite(BufferedImage sprite) {
+        currentSprite = sprite;
+    }
+
+    public BufferedImage getCurrentSprite() {
+        return currentSprite;
     }
 }
