@@ -10,6 +10,8 @@ import java.util.Map;
 
 public class Player {
     private static final int SPEED = 220;
+    private static final int MAX_HEALTH = 3;
+    private static final float INVINCIBILITY_DURATION = 1.0f;
 
     private final Rectangle bounds = new Rectangle();
     private float x;
@@ -22,6 +24,9 @@ public class Player {
     private float lastMoveX = 0f;
     private float lastMoveY = -1f;
     private BufferedImage currentSprite;
+    private int health;
+    private boolean invincible;
+    private float invincibilityTimer;
 
     public enum Direction {
         DOWN,
@@ -44,6 +49,9 @@ public class Player {
         this.spawnRow = startRow;
         // start guy on chosen tile pos
         setToSpawnTile(startCol, startRow, tileMap);
+        this.health = MAX_HEALTH;
+        this.invincible = false;
+        this.invincibilityTimer = 0f;
     }
 
     private void setToSpawnTile(int startCol, int startRow, TileMap tileMap) {
@@ -66,6 +74,7 @@ public class Player {
         setToSpawnTile(spawnCol, spawnRow, tileMap);
         lastMoveX = 0f;
         lastMoveY = -1f;
+        restoreFullHealth();
     }
 
     public void update(float deltaSeconds, boolean up, boolean down, boolean left, boolean right, TileMap tileMap) {
@@ -104,6 +113,8 @@ public class Player {
             // ok slide on y
             y = newY;
         }
+
+        updateInvincibility(deltaSeconds);
     }
 
     public Rectangle getBounds() {
@@ -156,6 +167,49 @@ public class Player {
         }
         lastMoveX = aimX;
         lastMoveY = aimY;
+    }
+
+    public boolean takeDamage(int amount) {
+        if (amount <= 0 || invincible) {
+            return false;
+        }
+        health = Math.max(0, health - amount);
+        invincible = true;
+        invincibilityTimer = INVINCIBILITY_DURATION;
+        return true;
+    }
+
+    public void updateInvincibility(float deltaSeconds) {
+        if (!invincible) {
+            return;
+        }
+        invincibilityTimer -= deltaSeconds;
+        if (invincibilityTimer <= 0f) {
+            invincibilityTimer = 0f;
+            invincible = false;
+        }
+    }
+
+    public void restoreFullHealth() {
+        health = MAX_HEALTH;
+        invincible = false;
+        invincibilityTimer = 0f;
+    }
+
+    public int getHealth() {
+        return health;
+    }
+
+    public int getMaxHealth() {
+        return MAX_HEALTH;
+    }
+
+    public boolean isInvincible() {
+        return invincible;
+    }
+
+    public boolean isDead() {
+        return health <= 0;
     }
 
     public Direction determineDirection() {

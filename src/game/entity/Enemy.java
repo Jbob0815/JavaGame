@@ -6,28 +6,32 @@ import java.awt.Rectangle;
 
 public class Enemy {
     public static final int SIZE = 60;
-    private static final float SPEED = 80f;
-    private final Rectangle bounds = new Rectangle();
-    private float x;
-    private float y;
-    private final int width;
-    private final int height;
-    private final TileMap tileMap;
-    // lazy vector so we chase just a bit per update
+    private static final float DEFAULT_SPEED = 80f;
+    protected final Rectangle bounds = new Rectangle();
+    protected float x;
+    protected float y;
+    protected final int width;
+    protected final int height;
+    protected final TileMap tileMap;
+    private final float baseSpeed;
     private float moveX;
     private float moveY;
 
     public Enemy(TileMap tileMap, int col, int row) {
+        this(tileMap, col, row, SIZE, SIZE, DEFAULT_SPEED);
+    }
+
+    protected Enemy(TileMap tileMap, int col, int row, int width, int height, float speed) {
         this.tileMap = tileMap;
-        this.width = SIZE;
-        this.height = SIZE;
-        // stick enemy on given tile coords
+        this.width = width;
+        this.height = height;
+        this.baseSpeed = speed;
         setToTile(tileMap, col, row);
     }
 
     private void setToTile(TileMap tileMap, int col, int row) {
         java.awt.Point world = tileMap.tileToWorld(col, row);
-        // center 60px sprite inside 64 tile
+        // center sprite in tile quick
         this.x = world.x + (TileMap.TILE_SIZE - width) / 2f;
         this.y = world.y + (TileMap.TILE_SIZE - height) / 2f;
     }
@@ -48,18 +52,35 @@ public class Enemy {
         moveX = dx / len;
         moveY = dy / len;
 
-        float stepX = moveX * SPEED * deltaSeconds;
-        float stepY = moveY * SPEED * deltaSeconds;
+        float speed = getSpeed();
+        float stepX = moveX * speed * deltaSeconds;
+        float stepY = moveY * speed * deltaSeconds;
 
         float nextX = x + stepX;
         float nextY = y + stepY;
 
-        if (tileMap.isAreaWalkable(nextX, y, width, height)) {
+        if (canOccupy(nextX, y)) {
             x = nextX;
         }
-        if (tileMap.isAreaWalkable(x, nextY, width, height)) {
+        if (canOccupy(x, nextY)) {
             y = nextY;
         }
+    }
+
+    protected float getSpeed() {
+        return baseSpeed;
+    }
+
+    protected boolean canOccupy(float nextX, float nextY) {
+        return tileMap.isAreaWalkable(nextX, nextY, width, height);
+    }
+
+    public Bullet maybeShoot(float deltaSeconds, Player player) {
+        return null;
+    }
+
+    public boolean onBulletHit() {
+        return true;
     }
 
     public Rectangle getBounds() {

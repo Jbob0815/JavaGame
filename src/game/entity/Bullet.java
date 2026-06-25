@@ -3,6 +3,10 @@ package game.entity;
 import java.awt.Rectangle;
 
 public class Bullet {
+    public enum Owner {
+        PLAYER,
+        ENEMY
+    }
     private static final int SPEED = 480;
     private static final int WIDTH = 14;
     private static final int HEIGHT = 14;
@@ -15,8 +19,14 @@ public class Bullet {
     private float dirY;
     private float lifeTimer;
     private boolean active = true;
+    private final Owner owner;
 
     public Bullet(float startX, float startY, float dirX, float dirY) {
+        this(startX, startY, dirX, dirY, Owner.PLAYER);
+    }
+
+    public Bullet(float startX, float startY, float dirX, float dirY, Owner owner) {
+        this.owner = owner;
         this.x = startX - WIDTH / 2.0f;
         this.y = startY - HEIGHT / 2.0f;
         setDirection(dirX, dirY);
@@ -75,5 +85,29 @@ public class Bullet {
 
     public int getHeight() {
         return HEIGHT;
+    }
+
+    public float getDirX() {
+        return dirX;
+    }
+
+    public float getDirY() {
+        return dirY;
+    }
+
+    public double getAngleRadians() {
+        return Math.atan2(dirY, dirX);
+    }
+
+    public Owner getOwner() {
+        return owner;
+    }
+
+    public boolean isPlayerOwned() {
+        return owner == Owner.PLAYER;
+    }
+
+    public boolean isEnemyOwned() {
+        return owner == Owner.ENEMY;
     }
 }

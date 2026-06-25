@@ -1,0 +1,87 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam monochrome true
+
+title JavaGame Core Classes
+
+class GamePanel {
+  - map: TileMap
+  - player: Player
+  - bullets: List<Bullet>
+  - enemies: List<Enemy>
+  - score: int
+  + start()
+  + stop()
+  + run()
+  - updateGame(nowNs: long, deltaSeconds: float)
+  - handleCollisions()
+  - maintainEnemyCount()
+  - renderHud(g2: Graphics2D)
+  - restartGame()
+}
+
+class Player {
+  - x: float
+  - y: float
+  - width: int
+  - height: int
+  - health: int
+  - invincible: boolean
+  + update(deltaSeconds: float, up: boolean, down: boolean, left: boolean, right: boolean, tileMap: TileMap)
+  + updateAim(aimX: float, aimY: float)
+  + takeDamage(amount: int): boolean
+  + updateInvincibility(deltaSeconds: float)
+  + reset(tileMap: TileMap)
+  + getBounds(): Rectangle
+  + getCenterX(): float
+  + getCenterY(): float
+  + getHealth(): int
+  + isInvincible(): boolean
+  + isDead(): boolean
+}
+
+class Enemy {
+  - x: float
+  - y: float
+  - tileMap: TileMap
+  + update(deltaSeconds: float, player: Player)
+  + getBounds(): Rectangle
+  + getCenterX(): float
+  + getCenterY(): float
+}
+
+class Bullet {
+  - x: float
+  - y: float
+  - dirX: float
+  - dirY: float
+  - active: boolean
+  + update(deltaSeconds: float)
+  + deactivate()
+  + getBounds(): Rectangle
+  + isActive(): boolean
+}
+
+class TileMap {
+  + TILE_SIZE: int
+  - tiles: int[][]
+  + isWalkable(col: int, row: int): boolean
+  + isHole(col: int, row: int): boolean
+  + isAreaWalkable(x: float, y: float, width: int, height: int): boolean
+  + tileToWorld(col: int, row: int): Point
+  + worldToCol(worldX: float): int
+  + worldToRow(worldY: float): int
+  + getRandomWalkableTile(random: Random): Point
+}
+
+GamePanel *-- Player
+GamePanel *-- Bullet
+GamePanel *-- Enemy
+GamePanel *-- TileMap
+GamePanel "1" o-- "*" Bullet : manages
+GamePanel "1" o-- "*" Enemy : manages
+Player --> TileMap
+Enemy --> TileMap
+Bullet ..> Player : spawns from
+
+@enduml

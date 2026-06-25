@@ -2,7 +2,9 @@ package game;
 
 import game.entity.Bullet;
 import game.entity.Enemy;
+import game.entity.FlyingEnemy;
 import game.entity.Player;
+import game.entity.StrongEnemy;
 import game.map.TileMap;
 
 import javax.imageio.ImageIO;
@@ -27,10 +29,15 @@ public class GamePanel extends JPanel implements Runnable {
     private static final int MAX_ENEMIES = 5;
     private static final float ENEMY_FRAME_SECONDS = 0.18f;
     private static final float BULLET_FRAME_SECONDS = 0.1f;
+    private static final int DAMAGE_PER_HIT = 1;
+    private static final int SCORE_PER_KILL = 100;
+    private static final float STRONG_ENEMY_CHANCE = 0.3f;
+    private static final float FLYING_ENEMY_CHANCE = 0.05f;
     private final TileMap map = TileMap.basicDemo();
     private final Player player = new Player(2, 2, map);
     private final List<Bullet> bullets = new ArrayList<>();
     private final List<Enemy> enemies = new ArrayList<>();
+    private final List<Bullet> enemyBullets = new ArrayList<>();
     private final Random random = new Random();
     private Thread loopThread;
     private volatile boolean running;
@@ -55,12 +62,15 @@ public class GamePanel extends JPanel implements Runnable {
     private final BufferedImage playerUpImg;
     private final BufferedImage[] enemyFrames;
     private final BufferedImage[] bulletFrames;
+    private final BufferedImage strongShieldSprite;
+    private final BufferedImage strongBareSprite;
     private int enemyFrameIndex;
     private float enemyFrameTimer;
     private int bulletFrameIndex;
     private float bulletFrameTimer;
     private final BufferedImage playerSansFallback;
     private static final float PLAYER_FRAME_SECONDS = 0.2f;
+    private int score;
 
     public GamePanel() {
         setPreferredSize(map.getPixelSize());
@@ -71,7 +81,7 @@ public class GamePanel extends JPanel implements Runnable {
         floorImg = loadImageOrThrow("Boden.png");
         wallImg = loadImageOrThrow("wand.png");
         holeImg = loadImageOrThrow("loch.png");
-        // try grab the sans gif for lulz, fallback later
+        // try grab the sans gif, fallback later
         playerSansFallback = tryLoadImage("sans.gif");
         BufferedImage downRaw = loadImageOrThrow("held-frame-0.png");
         BufferedImage rightRaw = loadImageOrThrow("held-frame-1.png");
@@ -90,6 +100,8 @@ public class GamePanel extends JPanel implements Runnable {
                 loadImageOrThrow("bullet-1.png"),
                 loadImageOrThrow("bullet-2.png")
         };
+        strongShieldSprite = tryLoadImage("strong-shield.png");
+        strongBareSprite = tryLoadImage("strong-bare.png");
     }
 
     public void start() {
@@ -184,6 +196,10 @@ public class GamePanel extends JPanel implements Runnable {
         while (enemyIter.hasNext()) {
             Enemy enemy = enemyIter.next();
             enemy.update(deltaSeconds, player);
+            Bullet enemyShot = enemy.maybeShoot(deltaSeconds, player);
+            if (enemyShot != null) {
+                enemyBullets.add(enemyShot);
+            }
         }
 
         Iterator<Bullet> bulletIter = bullets.iterator();
@@ -195,6 +211,20 @@ public class GamePanel extends JPanel implements Runnable {
                 bulletIter.remove();
             }
         }
+        Iterator<Bullet> enemyBulletIter = enemyBullets.iterator();
+        while (enemyBulletIter.hasNext()) {
+            Bullet bullet = enemyBulletIter.next();
+            bullet.update(deltaSeconds);
+            if (!bullet.isActive()) {
+                enemyBulletIter.remove();
+            }
+        }
+
+        if (!gameOver && isPlayerOverHole()) {
+            // player got too close to hole so rip
+            triggerGameOver();
+            return;
+        }
 
         handleCollisions();
         if (!gameOver) {
@@ -203,8 +233,10 @@ public class GamePanel extends JPanel implements Runnable {
         advanceAnimations(deltaSeconds);
     }
 
-    private Player.Direction resolvePlayerDirection() {
-        return player.determineDirection();
+    private boolean isPlayerOverHole() {
+        int col = map.worldToCol(player.getCenterX());
+        int row = map.worldToRow(player.getCenterY());
+        return map.isHole(col, row);
     }
 
     private void handleCollisions() {
@@ -215,7 +247,7 @@ public class GamePanel extends JPanel implements Runnable {
             Bullet bullet = bulletIter.next();
 
             if (!map.isAreaWalkable(bullet.getX(), bullet.getY(), bullet.getWidth(), bullet.getHeight())) {
-                // bullet bonks wall so bye bye
+                // bullet bonks wall so deactivate
                 bullet.deactivate();
             }
 
@@ -230,9 +262,12 @@ public class GamePanel extends JPanel implements Runnable {
             while (enemyIter.hasNext()) {
                 Enemy enemy = enemyIter.next();
                 if (bulletRect.intersects(enemy.getBounds())) {
-                    // hit confirm -> remove both
-                    enemyIter.remove();
+                    // hit confirm -> apply enemy specific response
                     bullet.deactivate();
+                    if (enemy.onBulletHit()) {
+                        enemyIter.remove();
+                        score += SCORE_PER_KILL;
+                    }
                     break;
                 }
             }
@@ -246,10 +281,23 @@ public class GamePanel extends JPanel implements Runnable {
             return;
         }
 
+        for (Bullet bullet : enemyBullets) {
+            if (playerRect.intersects(bullet.getBounds())) {
+                if (player.takeDamage(DAMAGE_PER_HIT) && player.isDead()) {
+                    triggerGameOver();
+                }
+                bullet.deactivate();
+            }
+        }
+        enemyBullets.removeIf(b -> !b.isActive());
+
         for (Enemy enemy : enemies) {
             if (playerRect.intersects(enemy.getBounds())) {
-                // bonk player and its gg
-                triggerGameOver();
+                // bonk player and its game over if hp hits 0
+                if (player.takeDamage(DAMAGE_PER_HIT) && player.isDead()) {
+                    triggerGameOver();
+                }
+                // stop checking to avoid chain hits same frame
                 break;
             }
         }
@@ -292,9 +340,19 @@ public class GamePanel extends JPanel implements Runnable {
             }
 
             // spawn stays still for now
-            enemies.add(new Enemy(map, tile.x, tile.y));
+            enemies.add(createRandomEnemy(tile.x, tile.y));
             return;
         }
+    }
+
+    private Enemy createRandomEnemy(int col, int row) {
+        if (random.nextFloat() < STRONG_ENEMY_CHANCE) {
+            return new StrongEnemy(map, col, row);
+        }
+        if (random.nextFloat() < FLYING_ENEMY_CHANCE) {
+            return new FlyingEnemy(map, col, row);
+        }
+        return new Enemy(map, col, row);
     }
 
     @Override
@@ -350,34 +408,68 @@ public class GamePanel extends JPanel implements Runnable {
             // sans meme stays backup buddy
             g2.drawImage(playerSansFallback, drawX, drawY, player.getWidth(), player.getHeight(), null);
         } else {
-            // super last fallback if art missing
+            // super last fallback if art missing / corrupted
             g2.setColor(Color.CYAN);
             g2.fillRect(drawX, drawY, player.getWidth(), player.getHeight());
         }
     }
 
     private void renderBullets(Graphics2D g2) {
-        BufferedImage bulletSprite = bulletFrames[bulletFrameIndex];
+        BufferedImage baseSprite = bulletFrames[bulletFrameIndex];
         for (Bullet bullet : bullets) {
-            int x = Math.round(bullet.getX());
-            int y = Math.round(bullet.getY());
-            g2.drawImage(bulletSprite, x, y, bullet.getWidth(), bullet.getHeight(), null);
+            drawBullet(g2, baseSprite, bullet);
+        }
+        for (Bullet bullet : enemyBullets) {
+            drawBullet(g2, baseSprite, bullet);
+        }
+    }
+
+    private void drawBullet(Graphics2D g2, BufferedImage baseSprite, Bullet bullet) {
+        BufferedImage sprite = baseSprite;
+        double angle = bullet.getAngleRadians();
+        if (Math.abs(angle) > 0.001) {
+            sprite = rotateImage(baseSprite, angle);
+        }
+        int x = Math.round(bullet.getX());
+        int y = Math.round(bullet.getY());
+        int drawW = bullet.getWidth();
+        int drawH = bullet.getHeight();
+        if (sprite != null) {
+            g2.drawImage(sprite, x, y, drawW, drawH, null);
+        } else {
+            g2.setColor(Color.YELLOW);
+            g2.fillOval(x, y, drawW, drawH);
         }
     }
 
     private void renderEnemies(Graphics2D g2) {
         BufferedImage enemySprite = enemyFrames[enemyFrameIndex];
         for (Enemy enemy : enemies) {
-            int x = Math.round(enemy.getX());
-            int y = Math.round(enemy.getY());
-            g2.drawImage(enemySprite, x, y, enemy.getWidth(), enemy.getHeight(), null);
+            if (enemy instanceof StrongEnemy strongEnemy) {
+                strongEnemy.render(g2, strongShieldSprite, strongBareSprite);
+            } else if (enemy instanceof FlyingEnemy flyingEnemy) {
+                flyingEnemy.render(g2);
+            } else {
+                int x = Math.round(enemy.getX());
+                int y = Math.round(enemy.getY());
+                g2.drawImage(enemySprite, x, y, enemy.getWidth(), enemy.getHeight(), null);
+            }
         }
     }
 
     private void renderHud(Graphics2D g2) {
-        g2.setColor(Color.WHITE);
-        // stops me forgeting which keys we messed with
+        g2.setColor(Color.RED);
         g2.drawString("wasd move, arrows aim, space shoot, R restart", 12, 18);
+        g2.drawString("Score: " + score, 12, 36);
+        StringBuilder hearts = new StringBuilder("HP: ");
+        for (int i = 0; i < player.getMaxHealth(); i++) {
+            hearts.append(i < player.getHealth() ? "♥" : "♡");
+        }
+        g2.drawString(hearts.toString(), 12, 54);
+        if (player.isInvincible() && (System.nanoTime() / 200_000_000L) % 2 == 0) {
+            // tiny note so we know invuln is active
+            g2.drawString("invincible", 12, 72);
+        }
     }
 
     private void renderGameOver(Graphics2D g2) {
@@ -398,7 +490,7 @@ public class GamePanel extends JPanel implements Runnable {
             enemyFrameTimer -= ENEMY_FRAME_SECONDS;
             enemyFrameIndex = (enemyFrameIndex + 1) % enemyFrames.length;
         }
-        // bullet flash faster cause pew pew
+        // bullet flash faster
         bulletFrameTimer += deltaSeconds;
         if (bulletFrameTimer >= BULLET_FRAME_SECONDS) {
             bulletFrameTimer -= BULLET_FRAME_SECONDS;
@@ -452,11 +544,31 @@ public class GamePanel extends JPanel implements Runnable {
         return flipped;
     }
 
+    private BufferedImage rotateImage(BufferedImage source, double angleRadians) {
+        if (source == null) {
+            return null;
+        }
+        double sin = Math.abs(Math.sin(angleRadians));
+        double cos = Math.abs(Math.cos(angleRadians));
+        int w = source.getWidth();
+        int h = source.getHeight();
+        int newW = (int) Math.floor(w * cos + h * sin);
+        int newH = (int) Math.floor(h * cos + w * sin);
+        BufferedImage rotated = new BufferedImage(newW, newH, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = rotated.createGraphics();
+        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        g2d.translate((newW - w) / 2.0, (newH - h) / 2.0);
+        g2d.rotate(angleRadians, w / 2.0, h / 2.0);
+        g2d.drawImage(source, 0, 0, null);
+        g2d.dispose();
+        return rotated;
+    }
+
     private void setupKeyBindings() {
         int condition = JComponent.WHEN_IN_FOCUSED_WINDOW;
         InputMap inputMap = getInputMap(condition);
         ActionMap actionMap = getActionMap();
-        // got to wire keys or nothing moves lol
+        // got to wire keys or nothing moves
         registerKey(inputMap, actionMap, KeyEvent.VK_W, "moveUp", () -> up = true, () -> up = false);
         registerKey(inputMap, actionMap, KeyEvent.VK_UP, "aimUpArrow", () -> aimUp = true, () -> aimUp = false);
         registerKey(inputMap, actionMap, KeyEvent.VK_S, "moveDown", () -> down = true, () -> down = false);
@@ -465,9 +577,10 @@ public class GamePanel extends JPanel implements Runnable {
         registerKey(inputMap, actionMap, KeyEvent.VK_LEFT, "aimLeftArrow", () -> aimLeft = true, () -> aimLeft = false);
         registerKey(inputMap, actionMap, KeyEvent.VK_D, "moveRight", () -> right = true, () -> right = false);
         registerKey(inputMap, actionMap, KeyEvent.VK_RIGHT, "aimRightArrow", () -> aimRight = true, () -> aimRight = false);
+        // space bar hold shoots indefinetly
         registerKey(inputMap, actionMap, KeyEvent.VK_SPACE, "fire", () -> firing = true, () -> firing = false);
         registerKey(inputMap, actionMap, KeyEvent.VK_R, "restart", this::handleRestartPressed, () -> {});
-        // r key sneaks in to reset things super quick
+        // r key to reset things super quick
     }
 
     private void registerKey(InputMap inputMap, ActionMap actionMap,
@@ -513,6 +626,7 @@ public class GamePanel extends JPanel implements Runnable {
     private void restartGame() {
         // wipe stuff to fresh run quick
         bullets.clear();
+        enemyBullets.clear();
         enemies.clear();
         player.reset(map);
         spawnInitialEnemies();
@@ -520,7 +634,8 @@ public class GamePanel extends JPanel implements Runnable {
         up = down = left = right = firing = false;
         aimUp = aimDown = aimLeft = aimRight = false;
         gameOver = false;
+        score = 0;
         requestFocusInWindow();
-        // focus grab else keys stop working and sadness follows
+        // focus grab else keys stop working
     }
 }

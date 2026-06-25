@@ -73,7 +73,8 @@ public final class TileMap {
     }
 
     public boolean isWalkable(int col, int row) {
-        return getTile(col, row) == WALKABLE;
+        int tile = getTile(col, row);
+        return tile != WALL;
     }
 
     // tiny helper so we know where shots die
@@ -83,6 +84,22 @@ public final class TileMap {
 
     public boolean isHole(int col, int row) {
         return getTile(col, row) == HOLE;
+    }
+
+    public boolean isAreaOverHole(float x, float y, int width, int height) {
+        int leftCol = worldToCol(x);
+        int rightCol = worldToCol(x + width - 1);
+        int topRow = worldToRow(y);
+        int bottomRow = worldToRow(y + height - 1);
+
+        for (int row = topRow; row <= bottomRow; row++) {
+            for (int col = leftCol; col <= rightCol; col++) {
+                if (isHole(col, row)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public Rectangle tileBounds(int col, int row) {
@@ -148,7 +165,8 @@ public final class TileMap {
     }
 
     public static TileMap basicDemo() {
-        int[][] layout = {
+        // simple map layout  (lvl1)
+        int[][] layout1 = {
                 {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
                 {1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1},
                 {1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1},
@@ -159,6 +177,31 @@ public final class TileMap {
                 {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
                 {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
         };
-        return new TileMap(layout);
+
+        //different map layout (lvl2)
+        int[][] layout2 = {
+                {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+                {1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 1},
+                {1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1},
+                {1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1},
+                {1, 0, 1, 0, 2, 1, 2, 0, 0, 2, 0, 0, 1},
+                {1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 1},
+                {1, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 2, 1},
+                {1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1},
+                {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+        };
+        //arena map layout (lvl3)
+        int[][] layout3 = {
+                {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+                {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+                {1, 0, 1, 1, 0, 2, 0, 2, 0, 1, 1, 0, 1},
+                {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+                {1, 0, 0, 0, 2, 0, 1, 0, 2, 0, 0, 0, 1},
+                {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+                {1, 0, 1, 1, 0, 2, 0, 2, 0, 1, 1, 0, 1},
+                {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+                {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+        };
+        return new TileMap(layout3);
     }
 }
