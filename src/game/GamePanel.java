@@ -100,8 +100,8 @@ public class GamePanel extends JPanel implements Runnable {
                 loadImageOrThrow("bullet-1.png"),
                 loadImageOrThrow("bullet-2.png")
         };
-        strongShieldSprite = tryLoadImage("strong-shield.png");
-        strongBareSprite = tryLoadImage("strong-bare.png");
+        strongShieldSprite = tryLoadImage("StrongEnemy_0.png");
+        strongBareSprite = tryLoadImage("StrongEnemy_1.png");
     }
 
     public void start() {

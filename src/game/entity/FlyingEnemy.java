@@ -8,7 +8,7 @@ import java.awt.Graphics2D;
 public class FlyingEnemy extends Enemy {
     public static final int SIZE = 128;
     private static final float SPEED = 28f;
-    private static final float SHOT_INTERVAL = 1.0f;
+    private static final float SHOT_INTERVAL = 2.0f;
     private static final int MAX_HEALTH = 5;
 
     private float shotTimer;
