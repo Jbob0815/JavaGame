@@ -6,6 +6,8 @@ import game.entity.FlyingEnemy;
 import game.entity.Player;
 import game.entity.StrongEnemy;
 import game.map.TileMap;
+import game.persistence.HighscoreEntry;
+import game.persistence.HighscoreService;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -18,6 +20,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
@@ -39,6 +42,9 @@ public class GamePanel extends JPanel implements Runnable {
     private final List<Enemy> enemies = new ArrayList<>();
     private final List<Bullet> enemyBullets = new ArrayList<>();
     private final Random random = new Random();
+    private final HighscoreService highscoreService;
+    private final List<HighscoreEntry> inMemoryHighscores = new ArrayList<>();
+    private List<HighscoreEntry> cachedHighscores = List.of();
     private Thread loopThread;
     private volatile boolean running;
     private boolean up;
@@ -62,6 +68,7 @@ public class GamePanel extends JPanel implements Runnable {
     private final BufferedImage playerUpImg;
     private final BufferedImage[] enemyFrames;
     private final BufferedImage[] bulletFrames;
+    private final BufferedImage[] flyingEnemyFrames;
     private final BufferedImage strongShieldSprite;
     private final BufferedImage strongBareSprite;
     private int enemyFrameIndex;
@@ -72,12 +79,12 @@ public class GamePanel extends JPanel implements Runnable {
     private static final float PLAYER_FRAME_SECONDS = 0.2f;
     private int score;
 
-    public GamePanel() {
+    public GamePanel(HighscoreService highscoreService) {
+        this.highscoreService = highscoreService;
         setPreferredSize(map.getPixelSize());
         setBackground(Color.BLACK);
         setFocusable(true);
         setupKeyBindings();
-        spawnInitialEnemies();
         floorImg = loadImageOrThrow("Boden.png");
         wallImg = loadImageOrThrow("wand.png");
         holeImg = loadImageOrThrow("loch.png");
@@ -100,8 +107,14 @@ public class GamePanel extends JPanel implements Runnable {
                 loadImageOrThrow("bullet-1.png"),
                 loadImageOrThrow("bullet-2.png")
         };
+        flyingEnemyFrames = new BufferedImage[]{
+                requireAnyImage("boss-0.png", "boss_0.png", "bos-0.png"),
+                requireAnyImage("boss-1.png", "boss_1.png"),
+                requireAnyImage("boss-2.png", "boss_2.png", "bos-2.png")
+        };
         strongShieldSprite = tryLoadImage("StrongEnemy_0.png");
         strongBareSprite = tryLoadImage("StrongEnemy_1.png");
+        spawnInitialEnemies();
     }
 
     public void start() {
@@ -350,7 +363,7 @@ public class GamePanel extends JPanel implements Runnable {
             return new StrongEnemy(map, col, row);
         }
         if (random.nextFloat() < FLYING_ENEMY_CHANCE) {
-            return new FlyingEnemy(map, col, row);
+            return new FlyingEnemy(map, col, row, flyingEnemyFrames);
         }
         return new Enemy(map, col, row);
     }
@@ -458,18 +471,46 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     private void renderHud(Graphics2D g2) {
-        g2.setColor(Color.RED);
-        g2.drawString("wasd move, arrows aim, space shoot, R restart", 12, 18);
-        g2.drawString("Score: " + score, 12, 36);
-        StringBuilder hearts = new StringBuilder("HP: ");
+        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 20f));
+        String[] lines = {
+                "Score: " + score,
+                "HP: " + buildHeartsString(),
+                "Controls:",
+                "WASD move | Arrows aim",
+                "Space shoot | R restart"
+        };
+        FontMetrics metrics = g2.getFontMetrics();
+        int padding = 14;
+        int lineHeight = metrics.getHeight();
+        int maxWidth = 0;
+        for (String line : lines) {
+            maxWidth = Math.max(maxWidth, metrics.stringWidth(line));
+        }
+        int boxWidth = maxWidth + padding * 2;
+        int boxHeight = lineHeight * lines.length + padding * 2 - metrics.getDescent();
+        int boxX = getWidth() - boxWidth - 16;
+        int boxY = 16;
+        g2.setColor(new Color(0, 0, 0, 170));
+        g2.fillRoundRect(boxX, boxY, boxWidth, boxHeight, 16, 16);
+        g2.setColor(Color.WHITE);
+        int textY = boxY + padding + lineHeight - metrics.getDescent();
+        for (String line : lines) {
+            int textX = boxX + boxWidth - padding - metrics.stringWidth(line);
+            g2.drawString(line, textX, textY);
+            textY += lineHeight;
+        }
+        if (player.isInvincible() && (System.nanoTime() / 200_000_000L) % 2 == 0) {
+            g2.setColor(Color.YELLOW);
+            g2.drawString("INVINCIBLE", boxX + padding, textY);
+        }
+    }
+
+    private String buildHeartsString() {
+        StringBuilder hearts = new StringBuilder();
         for (int i = 0; i < player.getMaxHealth(); i++) {
             hearts.append(i < player.getHealth() ? "♥" : "♡");
         }
-        g2.drawString(hearts.toString(), 12, 54);
-        if (player.isInvincible() && (System.nanoTime() / 200_000_000L) % 2 == 0) {
-            // tiny note so we know invuln is active
-            g2.drawString("invincible", 12, 72);
-        }
+        return hearts.toString();
     }
 
     private void renderGameOver(Graphics2D g2) {
@@ -481,6 +522,24 @@ public class GamePanel extends JPanel implements Runnable {
         g2.drawString("game over", 60, getHeight() / 2 - 20);
         g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 18f));
         g2.drawString("press R to try again", 60, getHeight() / 2 + 20);
+        drawHighscores(g2);
+    }
+
+    private void drawHighscores(Graphics2D g2) {
+        g2.setFont(g2.getFont().deriveFont(Font.BOLD, 22f));
+        int x = 60;
+        int y = getHeight() / 2 + 60;
+        g2.drawString("highscores", x, y);
+        g2.setFont(g2.getFont().deriveFont(Font.PLAIN, 18f));
+        y += 28;
+        if (cachedHighscores == null || cachedHighscores.isEmpty()) {
+            g2.drawString("no entries yet", x, y);
+            return;
+        }
+        for (HighscoreEntry entry : cachedHighscores) {
+            g2.drawString(entry.playerName() + " | " + entry.score(), x, y);
+            y += 24;
+        }
     }
 
     private void advanceAnimations(float deltaSeconds) {
@@ -564,6 +623,19 @@ public class GamePanel extends JPanel implements Runnable {
         return rotated;
     }
 
+    private BufferedImage requireAnyImage(String... fileNames) {
+        for (String name : fileNames) {
+            if (name == null) {
+                continue;
+            }
+            BufferedImage img = tryLoadImage(name);
+            if (img != null) {
+                return img;
+            }
+        }
+        throw new IllegalStateException("missing texture variants " + String.join(", ", fileNames));
+    }
+
     private void setupKeyBindings() {
         int condition = JComponent.WHEN_IN_FOCUSED_WINDOW;
         InputMap inputMap = getInputMap(condition);
@@ -615,6 +687,33 @@ public class GamePanel extends JPanel implements Runnable {
         // flip latch so loop chills out
         gameOver = true;
         firing = false;
+        handleHighscorePrompt();
+    }
+
+    private void handleHighscorePrompt() {
+        if (highscoreService == null) {
+            cachedHighscores = Collections.unmodifiableList(new ArrayList<>(inMemoryHighscores));
+            EventQueue.invokeLater(() -> {
+                String name = JOptionPane.showInputDialog(this, "enter name", "player 1");
+                if (name != null) {
+                    inMemoryHighscores.add(new HighscoreEntry(name.isBlank() ? "player 1" : name.trim(), score));
+                    inMemoryHighscores.sort((a, b) -> Integer.compare(b.score(), a.score()));
+                    if (inMemoryHighscores.size() > 10) {
+                        inMemoryHighscores.subList(10, inMemoryHighscores.size()).clear();
+                    }
+                }
+                cachedHighscores = Collections.unmodifiableList(new ArrayList<>(inMemoryHighscores));
+                repaint();
+            });
+            return;
+        }
+        cachedHighscores = highscoreService.loadTopScores();
+        EventQueue.invokeLater(() -> {
+            String name = JOptionPane.showInputDialog(this, "enter name", "player 1");
+            highscoreService.recordScore(name, score);
+            cachedHighscores = highscoreService.loadTopScores();
+            repaint();
+        });
     }
 
     private void handleRestartPressed() {
@@ -628,6 +727,7 @@ public class GamePanel extends JPanel implements Runnable {
         bullets.clear();
         enemyBullets.clear();
         enemies.clear();
+        cachedHighscores = Collections.emptyList();
         player.reset(map);
         spawnInitialEnemies();
         lastShotNs = 0;
